@@ -1,0 +1,184 @@
+StaIClassi (Version 1.0)
+
+E. Joshua Rigler <erigler@usgs.gov>
+U.S. Geological Survey, Geomagnetism Program
+Golden, CO
+
+
+1. INTRODUCTION
+
+  StaIClassi is an Octave-based statistical imputation and classification
+  toolbox. This awkward acronym honors a cult-favorite movie character, Ron
+  Burgundy, from Anchorman.
+
+  StaIClassi fits Gaussian mixture (GM) probability models to multichannel
+  data (i.e., physically distinct observations that are synchronous in time).
+  These are then used to cluster, impute/predict, and ultimately classify data
+  into their most likely categories.
+
+  StaIClassi also implements class label-space smoothing using Markov random
+  field (MRF) theory to generate spatio-temporal contextual priors that can be
+  combined with data-conditioned probabilities via Bayes' Theorem. In plain
+  language, this means that thematic labels are discouraged from occurring in
+  isolation, but rather exhibit a preference to cluster with identical labels.
+
+  StaIClassi provides tools to compare GM distributions via information
+  theoretic divergence measures based on the fitted model parameters. These may
+  be combined with tools that merge and split probability models (latter not
+  implemented yet) to construct more optimal, possibly time-dependent,
+  probability models.
+
+
+2. INSTALLING
+
+  StaIClassi is an Octave toolbox, and is easily "installed" by adding a path to
+  its file folder/directory in Octave using the addpath command. This is usually
+  done in an .octaverc file so the environment is set up each time Octave
+  starts.
+
+  StaIClassi has been developed with portability as a driving consideration.
+  This means that it does NOT rely on compiled libraries (i.e., .oct or .mex) to
+  speed up its intensive numerical processing, but rather it has been highly
+  vectorized to exploit Octave's already optimized vector and matrix operations.
+
+  StaIClassi does rely on some 3rd-party toolboxes that are not part of the main
+  Octave distribution, but these are all part of the Octave-Forge project, and
+  should be easy to install using Octave's pkg command. Currently, these are:
+
+    nan
+    statistics
+
+  These may in turn require additional Octave packages, but recent versions of
+  Octave's pkg command should resolve these dependencies automatically.
+
+
+
+3. TESTING
+
+   No formal test suite is implemented for StaIClassi yet.
+
+
+
+4. RUNNING
+
+  The following sequence of commands should help a new user become acquainted
+  with Octave and StaIClassi. It uses a data file containing nearly an solar-
+  cycle's worth of ACE solar wind measurements. This data file was, in turn,
+  created using a script named ace_test.m (the user may find useful hints in
+  this script, once they have become at least somewhat familiar with the basic
+  tools presented below).
+
+
+  * Initialize analysis environment:
+
+   1) Start Octave
+      $ octave
+
+   2) load 3rd-party support packages:
+      octave:#> pkg load statistics
+      octave:#> pkg load nan
+
+   3) load StaIClassi (no need to do this if it is installed under Octave's
+      default search path)
+      octave:#> addpath('/path/to/StaIClassi')
+
+   4) load test data file:
+      octave:#> load ace_test.mat
+
+
+  * Examine test data:
+
+   5) description of 7-channel ACE data
+      octave:#> whos chan_labels
+
+   6) structure of 7-channel ACE data
+      octave:#> whos ace_7chan*
+
+   7) time stamps associated with 7-channel ACE data
+      octave:#> whos stime_7chan*
+
+   8) plot subset of 7-channel ACE data in log10 space
+      octave:#> plot(stime_7chan(24:24:end), ace_7chan_log10(24:24:end,1,:));
+      octave:#> set(gca,'ytick', [-3:1:3], 'yticklabel', logspace(-3,3,7));
+      octave:#> legend(chan_labels);
+
+
+  * Train the classifier by selecting ranges of 7-channel observations for
+    each of 4 candidate classes/themes...
+
+   9) test data already contains a 4-theme training data variable; examine it
+      to note its dimensions, then plot it to see how sparse it is (note, this
+      variable is type int16, which confuses Octave's plotting utilities for
+      some reason...convert it to double); also, note now it is possible to
+      classify the same times as two different themes...this is not ideal, but
+      it is consistent with the reality of "expert"-trained classifiers.
+
+      octave:#> whos T_4t
+      octave:#> plot(stime_7chan, double(T_4t), '-*');
+      octave:#> datetick('x', 'keeplimits');
+      octave:#> legend(t_labels);
+      octave:#> axis([730600 730700]);
+      octave:#> set(gca, 'xtick', [730600:25:730700]);
+      octave:#> datetick('x', 'keeplimits', 'keepticks');
+
+  10) assign theme labels to observations to create training data; start with
+      existing training data, and add/delete training data points using a semi-
+      GUI selection tool.
+
+      octave:#> [M_7c_4t_gm1, C_7c_4t_gm1, N_4t_gm1, T_4t_gm1] = train_class (ace_7chan, T_4t);
+
+      NOTE: input focus must be on the plot window for GUI to work, but usage
+            hints will be printed to the terminal window, so it is helpful if
+            both windows are unobscured on the screen.
+
+
+  * Use statistics variables generated by train_class() to now classify entire
+    data set.
+
+  11) start with basic maximum likelihood classification:
+
+      octave:#> [I_4t_gm1, P_4t_gm1] = ml_class(ace_7chan, M_7c_4t_gm1, C_7c_4t_gm1, N_4t_gm1, [], true);
+
+  12) apply smoothness priors to obtain maximum posteriori probability classification
+
+      octave:#> [I_4t_gm1_smooth] = icm_map_class(P_4t_gm1, [], [], [], [], 0, 1, 10);
+
+      NOTE: this is an iterative conditional mode solver that we have chosen to
+            fix at 10 iterations rather than some formal convergence criterion;
+            basically it discourages individual classifications that differ from
+            their "neighbors".
+
+
+  * There is a lot more that can be done with StaIClassi, like using multi-
+    component Gaussian mixtures to statistically characterize each solar wind
+    theme for one (the example above uses just a single-component "mixture").
+    To gain a fuller understanding of the capabilities included in StaIClassi,
+    the user is invited to type "help function_name" at the Octave command
+    prompt, where "function_name" is one of:
+
+    bin_class        -
+    confuse          -
+    gauss_distance   -
+    gauss_merge      -
+    get_coord_img    -
+    get_coord_ts     -
+    gmix_cluster     -
+    gmix_distance    -
+    gmix_fit         -
+    gmix_impute      -
+    gmix_merge       -
+    gmix_pdf         -
+    gmix_sample      -
+    icm_map_class    -
+    img_resize_keep_aspect -
+    merge_class      -
+    metro_map_class  -
+    ml_class         -
+    smooth_class     -
+    train_class      -
+
+
+5. LEGAL
+
+   Need to get USGS software license verbiage here, or get approval to copyleft
+   the code in this package.
